@@ -3,22 +3,47 @@ const app = require("../src/app");
 const User = require("../src/model/User");
 
 jest.mock('../src/model/User.js', () =>({ create: jest.fn()}))
-describe('User routes', () => {
-    test('should return all of the users', async () => {
-        const response = await request(app).get('/users');
-        expect(response.statusCode).toBe(200);
-        const parseResponse = JSON.parse(response.text);
-        // console.log(parseResponse)
-        expect(parseResponse[2].username).toBe('MalikW')
-    })
+// jest.mock("../src/models/User.js", () => ({ create: jest.fn() }));
 
-    test('should create a user', async () => {
-        User.create.mockResolvedValue({"username": "test", 'email': "test", 'password': 'test'})
-        const response = await request(app).post('/users').send({"username": "test", 'email': "test", 'password': 'test'});
+describe("User routes", () => {
+    describe("CREATE controller", () => {
+        it("should create a user and return the username", async () => {
+            const userData = {
+                username: "testuser",
+                password: "Testpassword!",
+                email: "testuser@example.com",
+            };
+            const userMock = { ...userData, _id: "mockedId" };
+            User.create.mockResolvedValue(userMock);
 
+            const response = await request(app).post("/users").send(userData);
 
-        expect(response.statusCode).toBe(200);
-        expect(response.text).toBe('test');
-        expect(User.create).toHaveBeenCalledWith({"username": "test", 'email': "test", 'password': 'test'});
-    })
-})
+            expect(response.status).toBe(200);
+            expect(response.body).toEqual({ user: userMock.username });
+            expect(User.create).toHaveBeenCalledWith(userData);
+        });
+
+        it("should return 500 if user creation fails", async () => {
+            const error = new Error("User creation failed");
+            User.create.mockRejectedValue(error);
+
+            const response = await request(app)
+                .post("/users")
+                .send({ password: "Test!" });
+
+            expect(response.status).toBe(500);
+            expect(response.text).toContain("User creation failed");
+        });
+
+        it("should return an error message if password isn't strong", async () => {
+            const response = await request(app)
+                .post("/users")
+                .send({password: "test" });
+
+            expect(response.status).toBe(500);
+            expect(response.text).toContain(
+                "Password must contain at least one uppercase character and one special character."
+            );
+        });
+    });
+});
